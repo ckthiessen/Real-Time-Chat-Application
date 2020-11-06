@@ -6,7 +6,7 @@
     <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-    <link rel="shortcut icon" href="public/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="public/favicon.png" type="image/png">
     <title>Chit Chatter</title>
 </head>
 
@@ -16,7 +16,7 @@
             <v-card min-height=80vh width="960" class="mx-auto mt-5">
             <v-card-title class="d-flex justify-space-between">
                 <h1 class="display-2"> Chit Chatter </h1>
-                <h1 id="username" class="display-1"> </h1>
+                <h1 id="username" class="display-1"> {{ username }} </h1>
                 <h1 class="display-1"> Online Now: {{ userCount }} </h1>
             </v-card-title>
             <v-card id="log" height=50vh width=95% class="mx-auto overflow-y-auto" >
@@ -76,11 +76,16 @@
         
         methods: {
             send_message() {
+                if(this.message.substring(0,6)==="/name ") {
+                    socket.emit("set username", this.message.substring(6))
+                }
                 let sent_message = {
                     text: this.message,
                     username: this.username,
                 };
+            // this.messages.push(sent_message); // Can't do this because we won't get the time stamp
 
+                console.log(sent_message)
                 socket.emit("chat message", sent_message);
                 this.message = "";
             }
@@ -105,15 +110,21 @@
 
                 // Scroll to bottom on new message NOT WORKING
                 let cont = document.getElementById("log");
-                console.log(cont);
+                // console.log(cont);
                 cont.scrollTop = cont.scrollHeight;
-                console.log(cont.scrollTop + " : " + cont.scrollHeight)
+                // console.log(cont.scrollTop + " : " + cont.scrollHeight)
             })
 
             socket.on("enter", event => {
-                this.username = event.username;
                 this.userCount = event.userCount;
                 if(event.messages) { this.messages = event.messages };
+                console.log("Here")
+                // socket.emit("sync", ) //Sync event to sync the other sockets to the server. Only need this if I don't use io.emit on server
+            })
+
+            socket.on("set username", username => {
+                console.log(username)
+                this.username = username;
             })
 
             socket.on("leave", event => {
@@ -121,7 +132,6 @@
                 this.messages.push(event.message);
                 this.username = event.username;
                 this.userCount = event.userCount;
-                console.log(event);
             })
             
         }
