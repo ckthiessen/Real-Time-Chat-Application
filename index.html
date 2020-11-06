@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <link rel="shortcut icon" href="public/favicon.ico" type="image/x-icon">
+    <title>Chit Chatter</title>
+</head>
+
+<body>
+    <div id="app">
+        <v-app>
+            <v-card min-height=80vh width="960" class="mx-auto mt-5">
+            <v-card-title class="d-flex justify-space-between">
+                <h1 class="display-2"> Chit Chatter </h1>
+                <h1 id="username" class="display-1"> </h1>
+                <h1 class="display-1"> Online Now: {{ userCount }} </h1>
+            </v-card-title>
+            <v-card id="log" height=50vh width=95% class="mx-auto overflow-y-auto" >
+            <v-list  class="my-3"  v-for="message in messages">
+                <span>
+                    <p class="caption px-3 d-flex justify-end"> {{ message.username }} - {{ message.timeStamp }}</p>
+                </span>
+                <span class="d-flex justify-end mr-4">
+                        {{ message.text }}
+                </span>
+            </v-list>
+            <!-- How can I also store who is typing for this? Need another socket? -->
+            <span v-if="typing">Message is being typed</span> 
+            </v-card>
+            <v-card-text>
+                <v-form autocomplete="off" @submit.prevent="send_message">
+                    <v-text-field 
+                        label="Message"
+                        v-model="message"
+                        prepend-icon="mdi-send"
+                    ></v-text-field>
+                    <v-btn type="submit"
+                    color="info"
+                    > Send </v-btn>
+                </v-form>
+            </v-card-text>
+        </v-app>
+    </div>
+</body>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+    // Client side Socket.IO object
+    var socket = io();
+
+
+    // Creating a new Vue Instance
+    new Vue({
+        
+        // Adding a root element to our vue app
+        el: '#app',
+
+        vuetify: new Vuetify(),
+
+        // Declaring our data object with empty arrays and properties
+        data: {
+            message: '', 
+            messages: [], // Only updated by the server
+            username: '',
+            userCount: 0,
+            typing: false,
+            users: null,
+        },
+        
+        methods: {
+            send_message() {
+                let sent_message = {
+                    text: this.message,
+                    username: this.username,
+                };
+
+                socket.emit("chat message", sent_message);
+                this.message = "";
+            }
+
+        },
+
+        // watch: {
+        //     /**
+        //      * @param {string} value 
+        //      */
+        //     message(value) {
+        //         this.typing = value === "" ? false : true;
+        //     }
+        // },
+
+        // Register socket listeners when app is created
+        created() {
+            socket.on("chat message", serverMessages => {
+                this.messages.push(serverMessages);
+                // this.messages = serverMessages;
+                console.log(this.messages)
+
+                // Scroll to bottom on new message NOT WORKING
+                let cont = document.getElementById("log");
+                console.log(cont);
+                cont.scrollTop = cont.scrollHeight;
+                console.log(cont.scrollTop + " : " + cont.scrollHeight)
+            })
+
+            socket.on("enter", event => {
+                this.username = event.username;
+                this.userCount = event.userCount;
+                if(event.messages) { this.messages = event.messages };
+            })
+
+            socket.on("leave", event => {
+                // this.messages = event.messages;
+                this.messages.push(event.message);
+                this.username = event.username;
+                this.userCount = event.userCount;
+                console.log(event);
+            })
+            
+        }
+    })
+</script>
+
+</html>

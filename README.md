@@ -1,4 +1,5 @@
 # real-time-chat-application
+Real-time chat application built using Socket.IO
 
 ## Project setup
 ```
