@@ -26,15 +26,19 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
 
+// Known bugs 
+// Username overwriting
+// Not sending messages to everyone
+// Not showing proper user count
+
 io.on("connection", socket => {
+  userCount++;
   let username;
   let session;
-  io.emit("joined", null);
+  io.emit("joined", userCount);
 
   socket.on("get session", id => {
     if (sessions.has(id)) {
-      console.log(id);
-
       username = sessions.get(id).username;
       let color = sessions.get(id).color;
 
@@ -46,7 +50,7 @@ io.on("connection", socket => {
 
       socket.emit("set session", session);
     } else {
-      username = "user" + ++userCount;
+      username = "user" + userCount;
 
       let sessionId = uuidv4();
 
@@ -64,13 +68,15 @@ io.on("connection", socket => {
       });
     }
     console.log(username + " connected");
-    console.log(sessions);
+    console.log("Sessions after setting sessions: " + sessions);
     users.push(username);
     messages.push({
       text: username + " has joined the chat",
-      username,
+      username: username,
+      color: session.color,
       timeStamp: new Date().toLocaleTimeString("en-US", options)
     });
+    // socket.emit("set all sessions", sessions);
   });
 
   // Optimize so we aren't sending all messages every time
@@ -83,11 +89,20 @@ io.on("connection", socket => {
 
     let newUsername = request.newUsername;
     // Check if the server already has a session with the new username
-    if (sessions.some(session => session.username === newUsername)) {
+
+    let usernameTaken = false;
+    sessions.forEach(session => {
+      if (session.username === newUsername) {
+        usernameTaken = true;
+      }
+    });
+
+    if (usernameTaken) {
       // Need to test
       let message = {
         text: "That name is already being used by another user. Please select a new username.",
-        id: "server",
+        username: "server",
+        color: "black",
         timeStamp: new Date().toLocaleTimeString("en-US", options)
       };
       socket.emit("chat message", message);
@@ -100,10 +115,12 @@ io.on("connection", socket => {
 
     let message = {
       text: oldUsername + " has changed their name to " + newUsername,
-      id: sessionId,
+      username: newUsername,
+      color: session.color,
       timeStamp: new Date().toLocaleTimeString("en-US", options)
     };
     socket.emit("chat message", message);
+    // socket.emit("set all sessions", sessions);
   });
 
   socket.on("set color", request => {
@@ -112,17 +129,19 @@ io.on("connection", socket => {
 
     let newColor = request.newColor;
     session.color = newColor;
-    console.log(sessions);
+    console.log("Session after setting color: " + session);
 
-    socket.emit("set color", newColor);
+    socket.emit("set color", { username: session.username, color: newColor });
+    // socket.emit("set all sessions", sessions);
   });
 
   socket.on("disconnect", () => {
     console.log(session + " disconnected");
 
     let message = {
-      text: sessions.get(session).username + " has left the chat",
-      id: session.id,
+      text: username + " has left the chat",
+      username: "server",
+      color: "black",
       timeStamp: new Date().toLocaleTimeString("en-US", options)
     };
 
@@ -133,10 +152,11 @@ io.on("connection", socket => {
     socket.broadcast.emit("chat message", message);
 
     io.emit("leave", --userCount);
+    // socket.emit("set all sessions", sessions);
   });
 
   socket.on("chat message", msg => {
-    console.log(msg);
+    console.log("Chat message received at server: " + msg);
     // Remember most recent 200 messages
     msg.timeStamp = new Date().toLocaleTimeString("en-US", options);
     messages.length > 200
