@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <link rel="shortcut icon" href="public/favicon.png" type="image/png">
+    <title>Chit Chatter</title>
+</head>
+
+<body>
+    <div id="app">
+        <v-app>
+            <v-card min-height=80vh width="960" class="mx-auto mt-5">
+            <v-card-title class="d-flex justify-space-between">
+                <h1 class="display-2"> Chit Chatter </h1>
+                <h1 id="username" class="display-1"> {{ session.username }} </h1>
+                <h1 class="display-1"> Online Now: {{ userCount }} </h1>
+            </v-card-title>
+            <v-card id="log" height=50vh width=95% class="mx-auto overflow-y-auto" >
+            <v-list  class="my-3"  v-for="message in messages">
+                <span>
+                    <p class="caption px-3 d-flex justify-end"> {{ message.username }} - {{ message.timeStamp }}</p>
+                </span>
+                <span class="d-flex justify-end mr-4">
+                        {{ message.text }}
+                </span>
+            </v-list>
+            </v-card>
+            <v-card-text>
+                <v-form autocomplete="off" @submit.prevent="send_message">
+                    <v-text-field 
+                        label="Message"
+                        v-model="message"
+                        prepend-icon="mdi-send"
+                    ></v-text-field>
+                    <v-btn type="submit"
+                    color="info"
+                    > Send </v-btn>
+                </v-form>
+            </v-card-text>
+        </v-app>
+    </div>
+</body>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+    // Client side Socket.IO object
+    var socket = io();
+    
+    const emojiMap = new Map([[":)", "🙂"], [":(", "🙁"], [":O", "😮"]])
+
+    // Creating a new Vue Instance
+    new Vue({
+        
+        // Adding a root element to our vue app
+        el: '#app',
+
+        vuetify: new Vuetify(),
+
+        // Declaring our data object with empty arrays and properties
+        data: {
+            message: '', 
+            messages: [], // Only updated by the server
+            userCount: 0,
+            users: null,
+            session : {
+                id: null,
+                color: null,
+                username: '',
+            }
+        },
+        
+        methods: {
+            send_message() {
+                // User requests a new username
+                if(this.message.substring(0,6)==="/name ") {
+                    let newUsername = this.message.substring(6);
+                    if(newUsername.length >= 15) {
+                        alert("Please keep new username under 15 characters long"); // Can fix later
+                        return; 
+                    }
+                    let sessionId = this.session.id;
+                    // Emit session ID and the new username
+                    socket.emit("set username", { sessionId, newUsername });
+                }
+                else if(this.message.substring(0,7)==="/color ") {
+                    let sessionId = this.session.id;
+                    let newColor = this.message.substring(7,13);
+                    console.log(this.message)
+                    console.log(newColor)
+                    socket.emit("set color", { sessionId, newColor });
+                } else {
+                    let sent_message = {
+                        text: this.message,
+                        username: this.session.username,
+                    };
+                    console.log(sent_message)
+                    socket.emit("chat message", sent_message);
+                }
+                this.message = "";
+            }
+        },
+
+        // Use watcher for emoji replacement 
+        watch: {
+            message: function(val) {
+                let emoji = val.substring(val.length-2);
+                if(emojiMap.has(emoji)) {
+                    let newEmoji = emojiMap.get(emoji);
+                    this.message = this.message.replace(emoji, newEmoji);
+                }
+            }
+        },
+
+        // Register socket listeners when app is created
+        created() {
+            // Event listener for the "joined" event sent by the server on socket connection
+            socket.on("joined", () => {
+                console.log("Cookie on join " + document.cookie);
+
+                // If the client has a sessionID cookie, get the sessionID and send it to the server
+                if(document.cookie.split(";").some((token) => token.trim().startsWith("sessionID="))) {
+                    let sessionID = document.cookie.split(";").find((token) => token.startsWith("sessionID")).split("=")[1];
+                    socket.emit("get session", sessionID);
+
+                // Else send a "get session" request with a bad session ID (server will create a new one for the client)
+                } else {
+                    socket.emit("get session", "_");
+                }
+            })
+
+            // After getting session, server will send a set session event. Session will contain ID, color and username
+            socket.on("set session", session => {            
+                document.cookie = "sessionID=" + session.id + ";max-age="+60*60*1000+";"; //Max age 1 hour
+                console.log("Cookie on set session " + document.cookie)
+                this.session.username = session.username;
+                this.session.id = session.id;
+                this.session.color = session.color;
+                console.log(this.session);
+            });
+
+            // After requesting username change, server will send a set username event
+            socket.on("set username", newUsername => this.session.username = newUsername);
+
+            // After receiveing a message from the server, add message to client messages list
+            socket.on("chat message", serverMessage => {
+                this.messages.push(serverMessage);
+
+                // Scroll to bottom on new message NOT WORKING
+                let cont = document.getElementById("log");
+                // console.log(cont);
+                cont.scrollTop = cont.scrollHeight;
+                // console.log(cont.scrollTop + " : " + cont.scrollHeight)
+            })
+
+            // When a client leaves, server will send updated user count
+            socket.on("leave", newUserCount => {
+                this.userCount = newUserCount;
+            })
+            
+        }
+    })
+</script>
+
+</html>

@@ -15,9 +15,9 @@ const options = {
 };
 
 var userCount = 0;
-var messages = [];
-let users = new Map();
-// let sessionIdLength = uuidv4().length();
+var messages = []; // This object should contain the sessionID instead of the username cause username can change and session ID can be used to track their color changes but username can't (for previous reason)
+var sessions = new Map();
+var users = [];
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(favicon(path.join(__dirname, "public", "favicon.png"))); //Why won't this load?
@@ -26,71 +26,113 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
 
-// function addUser() {
-//   let sessionId = uuidv4();
-//   username = "user" + ++userCount;
-//   users.set(sessionId, { username, color: "black" });
-//   console.log(users);
-//   messages.push({
-//     text: username + " has joined the chat",
-//     username,
-//     timeStamp: new Date().toLocaleTimeString("en-US", options)
-//   });
-// }
-
-let username;
 io.on("connection", socket => {
-  let sessionId = uuidv4();
-  username = "user" + ++userCount;
-  users.set(sessionId, { username, color: "black" }); // Would like to use a UUID to create a session ID that will be stored in a cookie.
-  console.log(users);
-  messages.push({
-    text: username + " has joined the chat",
-    username,
-    timeStamp: new Date().toLocaleTimeString("en-US", options)
+  let username;
+  let session;
+  io.emit("joined", null);
+
+  socket.on("get session", id => {
+    if (sessions.has(id)) {
+      console.log(id);
+
+      username = sessions.get(id).username;
+      let color = sessions.get(id).color;
+
+      session = {
+        id,
+        username,
+        color
+      };
+
+      socket.emit("set session", session);
+    } else {
+      username = "user" + ++userCount;
+
+      let sessionId = uuidv4();
+
+      session = {
+        username,
+        color: "black"
+      };
+
+      sessions.set(sessionId, session); // Would like to use a UUID to create a session ID that will be stored in a cookie.
+
+      socket.emit("set session", {
+        id: sessionId,
+        username: session.username,
+        color: session.color
+      });
+    }
+    console.log(username + " connected");
+    console.log(sessions);
+    users.push(username);
+    messages.push({
+      text: username + " has joined the chat",
+      username,
+      timeStamp: new Date().toLocaleTimeString("en-US", options)
+    });
   });
-  // addUser();
 
   // Optimize so we aren't sending all messages every time
   // Should this be socket.emit or io.emit?
-    // If I do io.emit then we are sending the entire chat history to every client unnecessarily when a new user connects
-  io.emit("enter", {
-    userCount,
-    messages
+  // If I do io.emit then we are sending the entire chat history to every client unnecessarily when a new user connects
+
+  socket.on("set username", request => {
+    let sessionId = request.sessionId;
+    let session = sessions.get(sessionId);
+
+    let newUsername = request.newUsername;
+    // Check if the server already has a session with the new username
+    if (sessions.some(session => session.username === newUsername)) {
+      // Need to test
+      let message = {
+        text: "That name is already being used by another user. Please select a new username.",
+        id: "server",
+        timeStamp: new Date().toLocaleTimeString("en-US", options)
+      };
+      socket.emit("chat message", message);
+      return;
+    }
+    let oldUsername = session.username;
+    session.username = newUsername;
+
+    socket.emit("set username", newUsername);
+
+    let message = {
+      text: oldUsername + " has changed their name to " + newUsername,
+      id: sessionId,
+      timeStamp: new Date().toLocaleTimeString("en-US", options)
+    };
+    socket.emit("chat message", message);
   });
 
-  socket.emit("set session", uuidv4());
+  socket.on("set color", request => {
+    let sessionId = request.sessionId;
+    let session = sessions.get(sessionId);
 
-  socket.emit("set username", username);
+    let newColor = request.newColor;
+    session.color = newColor;
+    console.log(sessions);
 
-  // socket.on("set username", username => {
-    
-  // }
-
-  // Optimize so we aren't sending all messages every time
-  // socket.emit("enter", messages);
-
-  console.log(username + " connected");
+    socket.emit("set color", newColor);
+  });
 
   socket.on("disconnect", () => {
-    console.log(username + " disconnected");
+    console.log(session + " disconnected");
 
-    // users.delete(username);
-    console.log(users);
     let message = {
-      text: username + " has left the chat",
-      username: username,
+      text: sessions.get(session).username + " has left the chat",
+      id: session.id,
       timeStamp: new Date().toLocaleTimeString("en-US", options)
     };
 
-    messages.push(message);
+    sessions.delete(session);
+    console.log("Sessions after leaving: \n" + sessions);
 
-    userCount--;
-    let event = {
-      message,
-      userCount
-    };
-    io.emit("leave", event);
+    messages.push(message);
+    socket.broadcast.emit("chat message", message);
+
+    io.emit("leave", --userCount);
   });
 
   socket.on("chat message", msg => {
@@ -103,6 +145,7 @@ io.on("connection", socket => {
           messages.push(msg);
         }
       : messages.push(msg);
+
     // If use socket.broadcast.emit then client won't get the timestamp
     io.emit("chat message", msg);
   });
@@ -111,28 +154,3 @@ io.on("connection", socket => {
 http.listen(3000, () => {
   console.log("Listening on port localhost:3000");
 });
-
-// function addUser() {
-//   // console.log(cookies.getAll());
-  // if (users.has(document.cookie.substring( "sessionId=".length(), "sessionId=".length() + sessionIdLength))) {
-//   //   console.log(document.cookie.substring( "sessionId=".length(), "sessionId=".length() + sessionIdLength));
-//   //   return;
-//   // }
-//   let sessionId = uuidv4();
-//   username = "user" + ++userCount;
-//   users.set(sessionId, { username, color: "black" });
-//   console.log(users);
-//   messages.push({
-//     text: username + " has joined the chat",
-//     username,
-//     timeStamp: new Date().toLocaleTimeString("en-US", options)
-//   });
-//   let obj = {
-//     // sessionId: {
-//       username,
-//       color: "black"
-//     // }
-//   }
-//   document.cookie = sessionId + "=" + JSON.stringify(obj) + ";max-age="+60*60*1000+";";
-//   console.log(document.cookie);
-// }
