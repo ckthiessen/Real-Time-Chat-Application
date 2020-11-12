@@ -27,15 +27,16 @@ app.get("/", (req, res) => {
 });
 
 // Known bugs 
-// Username overwriting
 // Not sending messages to everyone
 // Not showing proper user count
+// Not updating other clients colors
 
 io.on("connection", socket => {
   userCount++;
   let username;
   let session;
   io.emit("joined", userCount);
+  socket.emit("get messages", messages);
 
   socket.on("get session", id => {
     if (sessions.has(id)) {
@@ -70,13 +71,14 @@ io.on("connection", socket => {
     console.log(username + " connected");
     console.log("Sessions after setting sessions: " + sessions);
     users.push(username);
-    messages.push({
+    let message = {
       text: username + " has joined the chat",
       username: username,
       color: session.color,
       timeStamp: new Date().toLocaleTimeString("en-US", options)
-    });
-    // socket.emit("set all sessions", sessions);
+    };
+    messages.push(message);
+    io.emit("chat message", message);
   });
 
   // Optimize so we aren't sending all messages every time
@@ -119,7 +121,7 @@ io.on("connection", socket => {
       color: session.color,
       timeStamp: new Date().toLocaleTimeString("en-US", options)
     };
-    socket.emit("chat message", message);
+    io.emit("chat message", message);
     // socket.emit("set all sessions", sessions);
   });
 
@@ -131,21 +133,20 @@ io.on("connection", socket => {
     session.color = newColor;
     console.log("Session after setting color: " + session);
 
-    socket.emit("set color", { username: session.username, color: newColor });
+    io.emit("set color", { username: session.username, color: newColor });
     // socket.emit("set all sessions", sessions);
   });
 
-  socket.on("disconnect", () => {
-    console.log(session + " disconnected");
+  socket.on("leave", sessionId => {
+    let leavingUser = sessions.get(sessionId).username;
 
     let message = {
-      text: username + " has left the chat",
+      text: leavingUser + " has left the chat",
       username: "server",
       color: "black",
       timeStamp: new Date().toLocaleTimeString("en-US", options)
     };
 
-    sessions.delete(session);
     console.log("Sessions after leaving: \n" + sessions);
 
     messages.push(message);
@@ -172,5 +173,5 @@ io.on("connection", socket => {
 });
 
 http.listen(3000, () => {
-  console.log("Listening on port localhost:3000");
+  console.log("Listening on port *:3000");
 });

@@ -19,15 +19,16 @@
                 <h1 class="display-1"> Online Now: {{ userCount }} </h1>
             </v-card-title>
             <h1 id="username" class="display-1 text-center mb-2"> {{ session.username }} </h1>
-            <v-card id="log" height=50vh width=95% class="mx-auto overflow-y-auto" >
-            <v-list  class="my-3"  v-for="message in messages">
-                <span>
-                    <p :style="{color: '#'+message.color }":style="[ message.username === session.username ? {'font-weight': } : {'font-weight': 'lighter'} ]" class="caption px-3 d-flex justify-end" > {{ message.username }} - {{ message.timeStamp }}</p>
-                </span>
-                <span class="d-flex justify-end mr-4">
-                    <p :style="{ color: '#'+message.color }" class="caption px-3 d-flex justify-end" > {{ message.text }}</p>
-                </span>
-            </v-list>
+            <v-card id="log" height=50vh width=95% class="d-flex flex-column-reverse mx-auto overflow-y-auto" >
+                <v-list id="scroll" :class="my-3 d-flex flex-column-reverse" v-for="message in messages">
+                    <span>
+                        <p v-if="message.username === session.username" :style="[ message.username === session.username ? {'font-weight': 'bold'} : {'font-weight': 'normal'} ]" class="caption px-3 d-flex justify-end" >{{ message.timeStamp}}  {{ message.username }}: {{ message.text }} </p>
+                        <p v-else :style="[ message.username === session.username ? {'font-weight': 'bold'} : {'font-weight': 'normal'} ]" class="caption px-3 d-flex " >{{ message.timeStamp}}  {{ message.username }}: {{ message.text }} </p>
+                    </span>
+                    <span class="d-flex justify-end mr-4">
+                        <p :style="{ color: '#'+message.color }" class="caption px-3 d-flex justify-end" > {{ message.text }}</p>
+                    </span>
+                </v-list>
             </v-card>
             <v-card-text>
                 <v-form autocomplete="off" @submit.prevent="send_message">
@@ -38,12 +39,19 @@
                     ></v-text-field>
                     <v-btn type="submit"
                     color="info"
+                    @click="scrollToBottom"
                     > Send </v-btn>
                 </v-form>
             </v-card-text>
         </v-app>
     </div>
 </body>
+
+<style>
+.scroll {
+    overflow: scroll;
+}
+</style>
 
 <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
@@ -109,6 +117,15 @@
                     socket.emit("chat message", sent_message);
                 }
                 this.message = "";
+            },
+
+            scrollToBottom() {
+                // Scroll to bottom on new message. Have to wait short period for message to return from server
+                setTimeout(() => {
+                    let cont = document.getElementById("log");
+                    console.log(cont);
+                    cont.scrollTop = cont.scrollHeight;
+                }, 250)
             }
         },
 
@@ -121,6 +138,11 @@
                     this.message = this.message.replace(emoji, newEmoji);
                 }
             }
+        },
+
+        mounted() {
+            // Scroll to bottom when new user enters the chat
+            this.scrollToBottom();
         },
 
         // Register socket listeners when app is created
@@ -147,7 +169,7 @@
             // });
 
             // After getting session, server will send a set session event. Session will contain ID, color and username
-            socket.on("set session", session => {            
+            socket.on("set session", session => {
                 document.cookie = "sessionID=" + session.id + ";max-age="+60*60*1000+";"; //Max age 1 hour
                 console.log("Cookie on set session " + document.cookie)
                 this.session.username = session.username;
@@ -155,6 +177,8 @@
                 this.session.color = session.color;
                 console.log(this.session);
             });
+
+            socket.on("get messages", serverMessages => this.messages = serverMessages);
 
             // After requesting username change, server will send a set username event
             socket.on("set username", newUsername => this.session.username = newUsername);
@@ -170,17 +194,17 @@
             // After receiveing a message from the server, add message to client messages list
             socket.on("chat message", serverMessage => {
                 this.messages.push(serverMessage);
-
-                // Scroll to bottom on new message NOT WORKING
-                let cont = document.getElementById("log");
-                // console.log(cont);
-                cont.scrollTop = cont.scrollHeight;
-                // console.log(cont.scrollTop + " : " + cont.scrollHeight)
             })
 
             // When a client leaves, server will send updated user count
             socket.on("leave", newUserCount => {
                 this.userCount = newUserCount;
+            })
+
+            window.addEventListener('beforeunload', event => {
+                event.preventDefault();
+                socket.emit("leave", this.session.id);
+                console.log(session.username + " left")
             })
             
         }
