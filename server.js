@@ -26,10 +26,10 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
 
-// Known bugs 
-// Not sending messages to everyone
-// Not showing proper user count
-// Not updating other clients colors
+
+// TODO: Need to display current users
+// TODO: Maybe send session ID's instead of attaching username to message (but I think there was a problem with this). Would a simple "fromServer" flag work?
+// TODO: Comment everything
 
 io.on("connection", socket => {
   userCount++;
@@ -93,6 +93,11 @@ io.on("connection", socket => {
     // Check if the server already has a session with the new username
 
     let usernameTaken = false;
+
+    if (newUsername === "server") {
+      usernameTaken = true;
+    }
+
     sessions.forEach(session => {
       if (session.username === newUsername) {
         usernameTaken = true;
