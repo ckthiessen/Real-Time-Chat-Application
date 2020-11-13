@@ -13,7 +13,7 @@
 <body>
     <div id="app">
         <v-app>
-            <v-navigation-drawer app width=10%>
+            <v-navigation-drawer expand-on-hover app mini-variant-width="10%" width=25%>
                 <v-list-item>
                     <v-list-item-content>
                       <v-list-item-title class="title">
@@ -26,43 +26,45 @@
                     <v-list-item
                         v-for="user in users"
                     >
-                        {{ user }}
+                    <!-- If the username is too long to display properly, show an ellipsis on overflow -->
+                    <p style="text-overflow:ellipsis; white-space:nowrap; overflow: hidden; width: 100%;"> {{ user }} </p>
                     </v-list-item>
                 </v-list>
             </v-navigation-drawer>
-            <v-card min-height=80vh width="960" class="mx-auto mt-5">
-            <v-card-title class="d-flex justify-space-between">
-                <h1 class="display-2"> Chit Chatter </h1>
-                <h1 class="display-1"> Online Now: {{ users.length }} </h1>
-            </v-card-title>
-            <h1 id="username" class="display-1 text-center mb-2"> {{ session.username }} </h1>
-            <v-card id="log" height=50vh width=95% class="d-flex flex-column mx-auto overflow-y-auto" >
-                <v-list style="transform: rotate(180deg)" id="scroll" class="my-3 d-flex flex-column-reverse" v-for="message in messages">
-                    <p v-if="message.id === session.id" class="px-3 d-flex justify-end" style="transform: rotate(-180deg);" >
-                        <span class="font-weight-bold"> {{ message.timeStamp}} - &nbsp; </span>
-                        <span :style="{ color: '#'+message.color }" class="font-weight-bold"> {{ message.username }}: &nbsp; </span> 
-                        <span class="font-weight-bold"> {{ message.text }} </span>
-                    </p>
-                    <p v-else class="px-3 d-flex" style="transform: rotate(-180deg);">
-                        <span> {{ message.timeStamp}} - &nbsp; </span>
-                        <span :style="{ color: '#'+message.color }"> {{ message.username }}: &nbsp; </span> 
-                        <span> {{ message.text }} </span>
-                    </p>
-                </v-list>
+            <v-card max-height=100vh width="960" class="mx-auto mt-2">
+                <v-card-title class="d-flex justify-space-between">
+                    <h1 class="display-2"> Chit Chatter </h1>
+                    <h1 class="display-1"> Online Now: {{ users.length }} </h1>
+                </v-card-title>
+                <h1 id="username" class="display-1 text-center mb-2"> {{ session.username }} </h1>
+                <v-card id="log" height=50vh width=95% class="d-flex flex-column mx-auto overflow-y-auto" >
+                    <v-list style="transform: rotate(180deg)" id="scroll" class="my-3 d-flex flex-column-reverse" v-for="message in messages">
+                        <p v-if="message.id === session.id" class="px-3 d-flex justify-end" style="transform: rotate(-180deg);" >
+                            <span class="font-weight-bold"> {{ message.timeStamp}} - &nbsp; </span>
+                            <span :style="{ color: '#'+message.color }" class="font-weight-bold"> {{ message.username }}: &nbsp; </span> 
+                            <span class="font-weight-bold"> {{ message.text }} </span>
+                        </p>
+                        <p v-else class="px-3 d-flex" style="transform: rotate(-180deg);">
+                            <span> {{ message.timeStamp}} - &nbsp; </span>
+                            <span :style="{ color: '#'+message.color }"> {{ message.username }}: &nbsp; </span> 
+                            <span> {{ message.text }} </span>
+                        </p>
+                    </v-list>
+                </v-card>
+                <v-card-text>
+                    <v-form autocomplete="off" @submit.prevent="sendMessage">
+                        <v-text-field 
+                            label="Message"
+                            v-model="message"
+                            prepend-icon="mdi-send"
+                        ></v-text-field>
+                        <v-btn type="submit"
+                        color="info"
+                        @click="scrollToBottom"
+                        > Send </v-btn>
+                    </v-form>
+                </v-card-text>
             </v-card>
-            <v-card-text>
-                <v-form autocomplete="off" @submit.prevent="sendMessage">
-                    <v-text-field 
-                        label="Message"
-                        v-model="message"
-                        prepend-icon="mdi-send"
-                    ></v-text-field>
-                    <v-btn type="submit"
-                    color="info"
-                    @click="scrollToBottom"
-                    > Send </v-btn>
-                </v-form>
-            </v-card-text>
         </v-app>
     </div>
 </body>
@@ -102,8 +104,8 @@
                     let newUsername = this.message.substring(6);
 
                     // Put some limit on username length
-                    if(newUsername.length >= 36) {
-                        alert("Please keep new username under 36 characters long");
+                    if(newUsername.length >= 25) {
+                        alert("Please keep new username under 25 characters long");
                         return; 
                     }
                     let sessionId = this.session.id;
