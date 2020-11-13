@@ -13,21 +13,27 @@
 <body>
     <div id="app">
         <v-app>
-            <v-navigation-drawer app>
+            <v-navigation-drawer app width=10%>
                 <v-list-item>
                     <v-list-item-content>
                       <v-list-item-title class="title">
                         Users
                       </v-list-item-title>
                     </v-list-item-content>
-                    <v-list>
-                        
-                    </v-list>
+                </v-list-item>
+                <v-divider></v-divider>
+                <v-list dense>
+                    <v-list-item
+                        v-for="user in users"
+                    >
+                        {{ user }}
+                    </v-list-item>
+                </v-list>
             </v-navigation-drawer>
             <v-card min-height=80vh width="960" class="mx-auto mt-5">
             <v-card-title class="d-flex justify-space-between">
                 <h1 class="display-2"> Chit Chatter </h1>
-                <h1 class="display-1"> Online Now: {{ userCount }} </h1>
+                <h1 class="display-1"> Online Now: {{ users.length }} </h1>
             </v-card-title>
             <h1 id="username" class="display-1 text-center mb-2"> {{ session.username }} </h1>
             <v-card id="log" height=50vh width=95% class="d-flex flex-column mx-auto overflow-y-auto" >
@@ -94,8 +100,8 @@
         data: {
             message: '', 
             messages: [], // Only updated by the server
-            userCount: 0,
-            sessions: null,
+            // userCount: 0,
+            users: [],
             session : {
                 id: null,
                 color: null,
@@ -133,7 +139,6 @@
                         username: this.session.username,
                         id: this.session.id
                     };
-                    console.log(sent_message)
                     socket.emit("chat message", sent_message);
                 }
                 this.message = "";
@@ -143,7 +148,6 @@
                 // Scroll to bottom on new message. Have to wait short period for message to return from server
                 setTimeout(() => {
                     let cont = document.getElementById("log");
-                    console.log(cont);
                     cont.scrollTop = cont.scrollHeight;
                 }, 250)
             }
@@ -168,10 +172,7 @@
         // Register socket listeners when app is created
         created() {
             // Event listener for the "joined" event sent by the server on socket connection
-            socket.on("joined", newUsercount => {
-                this.userCount = newUsercount;
-                console.log("Cookie on join " + document.cookie);
-
+            socket.on("joined", () => {
                 // If the client has a sessionID cookie, get the sessionID and send it to the server
                 if(document.cookie.split(";").some((token) => token.trim().startsWith("sessionID="))) {
                     let sessionID = document.cookie.split(";").find((token) => token.startsWith("sessionID")).split("=")[1];
@@ -179,29 +180,31 @@
 
                 // Else send a "get session" request with a bad session ID (server will create a new one for the client)
                 } else {
+                    console.log("here");
                     socket.emit("get session", "_");
                 }
             })
 
-            // socket.on("set all sessions", sessions => { 
-            //     this.sessions = sessions;
-            //     console.log("All sessions: " + sessions);
-            // });
+            socket.on("set users", users => { 
+                this.users = users;
+                console.log(users);
+            });
 
             // After getting session, server will send a set session event. Session will contain ID, color and username
             socket.on("set session", session => {
                 document.cookie = "sessionID=" + session.id + ";max-age="+60*60*1000+";"; //Max age 1 hour
-                console.log("Cookie on set session " + document.cookie)
                 this.session.username = session.username;
                 this.session.id = session.id;
                 this.session.color = session.color;
-                console.log(this.session);
             });
 
             socket.on("get messages", serverMessages => this.messages = serverMessages);
 
             // After requesting username change, server will send a set username event
-            socket.on("set username", newUsername => this.session.username = newUsername);
+            socket.on("set username", newUsername =>  {
+                this.session.username = newUsername
+                console.log(this.users)
+            });
 
             socket.on("set color", response =>  {
                 this.messages.forEach(message => {
@@ -215,18 +218,16 @@
             socket.on("chat message", serverMessage => {
                 this.messages.push(serverMessage);
                 this.scrollToBottom();
-                console.log(serverMessage);
             })
 
             // When a client leaves, server will send updated user count
-            socket.on("leave", newUserCount => {
-                this.userCount = newUserCount;
-            })
+            // socket.on("leave", newUserCount => {
+            //     this.userCount = newUserCount;
+            // })
 
             window.addEventListener('beforeunload', event => {
                 event.preventDefault();
                 socket.emit("leave", this.session.id);
-                console.log(session.username + " left")
             })
             
         }

@@ -17,7 +17,7 @@ const options = {
 var userCount = 0;
 var messages = []; // This object should contain the sessionID instead of the username cause username can change and session ID can be used to track their color changes but username can't (for previous reason)
 var sessions = new Map();
-// var users = [];
+var users = [];
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(favicon(path.join(__dirname, "public", "favicon.png"))); //Why won't this load?
@@ -25,7 +25,6 @@ app.use(favicon(path.join(__dirname, "public", "favicon.png"))); //Why won't thi
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
-
 
 // TODO: Need to display current users
 // TODO: Maybe send session ID's instead of attaching username to message (but I think there was a problem with this). Would a simple "fromServer" flag work?
@@ -36,8 +35,8 @@ io.on("connection", socket => {
   userCount++;
   let username;
   let session;
-  io.emit("joined", userCount);
-  socket.emit("get messages", messages);
+  socket.emit("joined");
+    socket.emit("get messages", messages);
 
   socket.on("get session", id => {
     let sessionId;
@@ -71,9 +70,6 @@ io.on("connection", socket => {
         color: session.color
       });
     }
-    console.log(username + " connected");
-    console.log("Sessions after setting sessions: " + sessions);
-    // users.push(username);
     let message = {
       text: username + " has joined the chat",
       username: "server",
@@ -83,6 +79,13 @@ io.on("connection", socket => {
     };
     messages.push(message);
     io.emit("chat message", message);
+
+    // if (users.indexOf(username) == -1) {
+    //   users.push(username);
+    // }
+      users.push(username);
+    console.log("Here2 " + users);
+    io.emit("set users", users);
   });
 
   // Optimize so we aren't sending all messages every time
@@ -109,7 +112,6 @@ io.on("connection", socket => {
     });
 
     if (usernameTaken) {
-      // Need to test
       let message = {
         text: "That name is already being used by another user. Please select a new username.",
         username: "server",
@@ -125,6 +127,10 @@ io.on("connection", socket => {
 
     socket.emit("set username", newUsername);
 
+    users[users.indexOf(oldUsername)] = newUsername;
+    console.log("Here " + users);
+    io.emit("set users", users);
+
     let message = {
       text: oldUsername + " has changed their name to " + newUsername,
       username: "server",
@@ -134,7 +140,6 @@ io.on("connection", socket => {
     };
     messages.push(message);
     io.emit("chat message", message);
-    // socket.emit("set all sessions", sessions);
   });
 
   socket.on("set color", request => {
@@ -146,7 +151,6 @@ io.on("connection", socket => {
     console.log("Session after setting color: " + session);
 
     io.emit("set color", { username: session.username, color: newColor });
-    // socket.emit("set all sessions", sessions);
 
     let message = {
       text: session.username + " has changed their color to " + newColor,
@@ -162,6 +166,12 @@ io.on("connection", socket => {
   socket.on("leave", sessionId => {
     let leavingUser = sessions.get(sessionId).username;
 
+    users.splice(users.indexOf(leavingUser), 1);
+
+    userCount--;
+    console.log(users);
+    io.emit("set users", users);
+
     let message = {
       text: leavingUser + " has left the chat",
       username: "server",
@@ -170,17 +180,11 @@ io.on("connection", socket => {
       id: -1 // Server ID is -1
     };
 
-    console.log("Sessions after leaving: \n" + sessions);
-
     messages.push(message);
     socket.broadcast.emit("chat message", message);
-
-    io.emit("leave", --userCount);
-    // socket.emit("set all sessions", sessions);
   });
 
   socket.on("chat message", msg => {
-    console.log("Chat message received at server: " + msg);
     // Remember most recent 200 messages
     msg.timeStamp = new Date().toLocaleTimeString("en-US", options);
     messages.length > 200
