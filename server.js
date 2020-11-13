@@ -113,10 +113,8 @@ io.on("connection", socket => {
     messages.push(message);
     io.emit("chat message", message);
 
-    // If user not in user list, add them
-    if (users.indexOf(username) == -1) {
-      users.push(username);
-    }
+    // Add user to user list.
+    users.push(username);
 
     // Emit list of users to all clients
     io.emit("set users", users);
