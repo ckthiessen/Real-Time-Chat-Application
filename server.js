@@ -6,6 +6,7 @@ let io = require("socket.io")(http);
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
 
+// Options for the time
 const options = {
   timeZone: "America/Edmonton",
   hour12: true,
@@ -15,32 +16,34 @@ const options = {
 };
 
 var userCount = 0;
-var messages = []; // This object should contain the sessionID instead of the username cause username can change and session ID can be used to track their color changes but username can't (for previous reason)
+var messages = [];
 var sessions = new Map();
 var users = [];
 
 app.use(express.static(path.join(__dirname, "public")));
-app.use(favicon(path.join(__dirname, "public", "favicon.png"))); //Why won't this load?
+app.use(favicon(path.join(__dirname, "public", "favicon.png")));
 
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
 
-// TODO: Need to display current users
-// TODO: Maybe send session ID's instead of attaching username to message (but I think there was a problem with this). Would a simple "fromServer" flag work?
-// TODO: Comment everything
-// BUG: Quitting in firefox decrements user even though theu haven't already left
-
 io.on("connection", socket => {
   userCount++;
   let username;
   let session;
-  socket.emit("joined");
-    socket.emit("get messages", messages);
 
+  // Send joined event to client
+  socket.emit("joined");
+
+  // Send all messages to joined client
+  socket.emit("get messages", messages);
+
+  // Wait for client to send get session request
   socket.on("get session", id => {
     let sessionId;
+
     if (sessions.has(id)) {
+      // If server already has session ID, return the session corresponding to that ID.
       sessionId = id;
       username = sessions.get(id).username;
       let color = sessions.get(id).color;
@@ -51,10 +54,15 @@ io.on("connection", socket => {
         color
       };
 
+      // Emit session back to client
       socket.emit("set session", session);
     } else {
+      // Else, create a new session
+
+      //Create default username
       username = "user" + userCount;
 
+      // Create new session ID
       sessionId = uuidv4();
 
       session = {
@@ -62,14 +70,17 @@ io.on("connection", socket => {
         color: "black"
       };
 
-      sessions.set(sessionId, session); // Would like to use a UUID to create a session ID that will be stored in a cookie.
+      // Store session on server
+      sessions.set(sessionId, session);
 
+      // Emit session back to client
       socket.emit("set session", {
         id: sessionId,
         username: session.username,
         color: session.color
       });
     }
+    // Send message to users that new user has joined
     let message = {
       text: username + " has joined the chat",
       username: "server",
@@ -80,37 +91,37 @@ io.on("connection", socket => {
     messages.push(message);
     io.emit("chat message", message);
 
-    // if (users.indexOf(username) == -1) {
-    //   users.push(username);
-    // }
+    // If user not in user list, add them
+    if (users.indexOf(username) == -1) {
       users.push(username);
-    console.log("Here2 " + users);
+    }
+
+    // Emit list of users to all clients
     io.emit("set users", users);
   });
 
-  // Optimize so we aren't sending all messages every time
-  // Should this be socket.emit or io.emit?
-  // If I do io.emit then we are sending the entire chat history to every client unnecessarily when a new user connects
-
+  // Wait for set username event
   socket.on("set username", request => {
     let sessionId = request.sessionId;
     let session = sessions.get(sessionId);
 
     let newUsername = request.newUsername;
-    // Check if the server already has a session with the new username
 
     let usernameTaken = false;
 
+    // Don't let the client choose the name "server"
     if (newUsername === "server") {
       usernameTaken = true;
     }
 
+    // Check if the server already has a session with the new username
     sessions.forEach(session => {
       if (session.username === newUsername) {
         usernameTaken = true;
       }
     });
 
+    // If username is taken, don't set the username and tell client to choose another username.
     if (usernameTaken) {
       let message = {
         text: "That name is already being used by another user. Please select a new username.",
@@ -122,15 +133,20 @@ io.on("connection", socket => {
       socket.emit("chat message", message);
       return;
     }
+
     let oldUsername = session.username;
     session.username = newUsername;
 
+    // Emit the new username back to the client
     socket.emit("set username", newUsername);
 
+    // Replace the the old username with the new username in the users list
     users[users.indexOf(oldUsername)] = newUsername;
-    console.log("Here " + users);
+
+    // Emit the list of users to all clients
     io.emit("set users", users);
 
+    // Send message to all clients that user changed name
     let message = {
       text: oldUsername + " has changed their name to " + newUsername,
       username: "server",
@@ -142,16 +158,18 @@ io.on("connection", socket => {
     io.emit("chat message", message);
   });
 
+  // Wait for set color event
   socket.on("set color", request => {
     let sessionId = request.sessionId;
     let session = sessions.get(sessionId);
 
     let newColor = request.newColor;
     session.color = newColor;
-    console.log("Session after setting color: " + session);
 
+    // Emit the new color back to the user
     io.emit("set color", { username: session.username, color: newColor });
 
+    // Send message to all clients that user changed their color
     let message = {
       text: session.username + " has changed their color to " + newColor,
       username: "server",
@@ -163,15 +181,19 @@ io.on("connection", socket => {
     io.emit("chat message", message);
   });
 
+  // Wait for leave event
   socket.on("leave", sessionId => {
     let leavingUser = sessions.get(sessionId).username;
 
+    // Remove leaving user from users list
     users.splice(users.indexOf(leavingUser), 1);
 
     userCount--;
-    console.log(users);
+
+    // Emit the user list to all clients
     io.emit("set users", users);
 
+    // Send message to all clients that user left
     let message = {
       text: leavingUser + " has left the chat",
       username: "server",
@@ -184,9 +206,12 @@ io.on("connection", socket => {
     socket.broadcast.emit("chat message", message);
   });
 
+  // Wait for chat message event
   socket.on("chat message", msg => {
-    // Remember most recent 200 messages
+    // Create time stamp
     msg.timeStamp = new Date().toLocaleTimeString("en-US", options);
+
+    // Remember most recent 200 messages
     messages.length > 200
       ? () => {
           messages.shift();
@@ -194,7 +219,7 @@ io.on("connection", socket => {
         }
       : messages.push(msg);
 
-    // If use socket.broadcast.emit then client won't get the timestamp
+    // Send message to all clients
     io.emit("chat message", msg);
   });
 });
