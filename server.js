@@ -16,7 +16,29 @@ const options = {
 };
 
 var userCount = 0;
-var messages = [];
+var messages = [
+  {
+    text: "Welcome to Chit Chatter!",
+    username: "server",
+    color: "000000", // Set color to black
+    timeStamp: new Date().toLocaleTimeString("en-US", options),
+    id: -1 // -1 is server ID
+  },
+  {
+    text: 'You can change your name by sending "/name <new username>".',
+    username: "server",
+    color: "000000", // Set color to black
+    timeStamp: new Date().toLocaleTimeString("en-US", options),
+    id: -1 // -1 is server ID
+  },
+  {
+    text: 'You can change your username color by sending "/color <RRGGBB>".',
+    username: "server",
+    color: "000000", // Set color to black
+    timeStamp: new Date().toLocaleTimeString("en-US", options),
+    id: -1 // -1 is server ID
+  }
+];
 var sessions = new Map();
 var users = [];
 
