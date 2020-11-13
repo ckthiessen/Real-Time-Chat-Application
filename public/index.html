@@ -13,6 +13,17 @@
 <body>
     <div id="app">
         <v-app>
+            <v-navigation-drawer app>
+                <v-list-item>
+                    <v-list-item-content>
+                      <v-list-item-title class="title">
+                        Users
+                      </v-list-item-title>
+                    </v-list-item-content>
+                    <v-list>
+                        
+                    </v-list>
+            </v-navigation-drawer>
             <v-card min-height=80vh width="960" class="mx-auto mt-5">
             <v-card-title class="d-flex justify-space-between">
                 <h1 class="display-2"> Chit Chatter </h1>
@@ -21,7 +32,7 @@
             <h1 id="username" class="display-1 text-center mb-2"> {{ session.username }} </h1>
             <v-card id="log" height=50vh width=95% class="d-flex flex-column mx-auto overflow-y-auto" >
                 <v-list style="transform: rotate(180deg)" id="scroll" class="my-3 d-flex flex-column-reverse" v-for="message in messages">
-                    <p v-if="message.username === session.username" class="px-3 d-flex justify-end" style="transform: rotate(-180deg);" >
+                    <p v-if="message.id === session.id" class="px-3 d-flex justify-end" style="transform: rotate(-180deg);" >
                         <!-- <p v-if="message.username === session.username" class="caption px-3 d-flex justify-end" > -->
                         <span class="font-weight-bold"> {{ message.timeStamp}} - &nbsp; </span>
                         <span :style="{ color: '#'+message.color }" class="font-weight-bold"> {{ message.username }}: &nbsp; </span> 
@@ -120,6 +131,7 @@
                         text: this.message,
                         color: this.session.color,
                         username: this.session.username,
+                        id: this.session.id
                     };
                     console.log(sent_message)
                     socket.emit("chat message", sent_message);
@@ -203,6 +215,7 @@
             socket.on("chat message", serverMessage => {
                 this.messages.push(serverMessage);
                 this.scrollToBottom();
+                console.log(serverMessage);
             })
 
             // When a client leaves, server will send updated user count

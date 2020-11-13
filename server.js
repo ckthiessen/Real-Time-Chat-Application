@@ -17,7 +17,7 @@ const options = {
 var userCount = 0;
 var messages = []; // This object should contain the sessionID instead of the username cause username can change and session ID can be used to track their color changes but username can't (for previous reason)
 var sessions = new Map();
-var users = [];
+// var users = [];
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(favicon(path.join(__dirname, "public", "favicon.png"))); //Why won't this load?
@@ -30,6 +30,7 @@ app.get("/", (req, res) => {
 // TODO: Need to display current users
 // TODO: Maybe send session ID's instead of attaching username to message (but I think there was a problem with this). Would a simple "fromServer" flag work?
 // TODO: Comment everything
+// BUG: Quitting in firefox decrements user even though theu haven't already left
 
 io.on("connection", socket => {
   userCount++;
@@ -39,7 +40,9 @@ io.on("connection", socket => {
   socket.emit("get messages", messages);
 
   socket.on("get session", id => {
+    let sessionId;
     if (sessions.has(id)) {
+      sessionId = id;
       username = sessions.get(id).username;
       let color = sessions.get(id).color;
 
@@ -53,7 +56,7 @@ io.on("connection", socket => {
     } else {
       username = "user" + userCount;
 
-      let sessionId = uuidv4();
+      sessionId = uuidv4();
 
       session = {
         username,
@@ -70,12 +73,13 @@ io.on("connection", socket => {
     }
     console.log(username + " connected");
     console.log("Sessions after setting sessions: " + sessions);
-    users.push(username);
+    // users.push(username);
     let message = {
       text: username + " has joined the chat",
-      username: username,
-      color: session.color,
-      timeStamp: new Date().toLocaleTimeString("en-US", options)
+      username: "server",
+      color: "000000", // Set color to black
+      timeStamp: new Date().toLocaleTimeString("en-US", options),
+      id: -1 // -1 is server ID
     };
     messages.push(message);
     io.emit("chat message", message);
@@ -109,8 +113,9 @@ io.on("connection", socket => {
       let message = {
         text: "That name is already being used by another user. Please select a new username.",
         username: "server",
-        color: "black",
-        timeStamp: new Date().toLocaleTimeString("en-US", options)
+        color: "000000",
+        timeStamp: new Date().toLocaleTimeString("en-US", options),
+        id: -1
       };
       socket.emit("chat message", message);
       return;
@@ -122,10 +127,12 @@ io.on("connection", socket => {
 
     let message = {
       text: oldUsername + " has changed their name to " + newUsername,
-      username: newUsername,
-      color: session.color,
-      timeStamp: new Date().toLocaleTimeString("en-US", options)
+      username: "server",
+      color: "000000", // Set color to black
+      timeStamp: new Date().toLocaleTimeString("en-US", options),
+      id: -1 // Server ID is -1
     };
+    messages.push(message);
     io.emit("chat message", message);
     // socket.emit("set all sessions", sessions);
   });
@@ -140,6 +147,16 @@ io.on("connection", socket => {
 
     io.emit("set color", { username: session.username, color: newColor });
     // socket.emit("set all sessions", sessions);
+
+    let message = {
+      text: session.username + " has changed their color to " + newColor,
+      username: "server",
+      color: "000000", // Set color to black
+      timeStamp: new Date().toLocaleTimeString("en-US", options),
+      id: -1 // Server ID is -1
+    };
+    messages.push(message);
+    io.emit("chat message", message);
   });
 
   socket.on("leave", sessionId => {
@@ -148,8 +165,9 @@ io.on("connection", socket => {
     let message = {
       text: leavingUser + " has left the chat",
       username: "server",
-      color: "black",
-      timeStamp: new Date().toLocaleTimeString("en-US", options)
+      color: "000000", // Set message color to black
+      timeStamp: new Date().toLocaleTimeString("en-US", options),
+      id: -1 // Server ID is -1
     };
 
     console.log("Sessions after leaving: \n" + sessions);
