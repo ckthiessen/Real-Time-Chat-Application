@@ -19,3 +19,5 @@ npm install
 node server.js
 ```
 Then go to localhost:3000
+
+To simulate multiple users, open localhost:3000 in one or more incognito tabs. This will create a new session instead of reusing an existing one. 
